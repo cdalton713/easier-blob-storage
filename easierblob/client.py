@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from azure.storage.blob import BlobServiceClient, BlobSasPermissions, generate_blob_sas, ContainerClient, BlobClient
 from pathlib import Path
 import urllib.parse
+import os
 
 
 def _make_url(base_url, *parts: str, **params):
@@ -21,19 +22,20 @@ def _create_folder(path, parents=True, exist_ok=True):
 
 class Client(object):
 
-    def __init__(self, host_name, storage_account, storage_container, key):
-        self.AZURE_STORAGE_HOST_NAME = host_name
+    def __init__(self, storage_account, storage_container, key, protocol='https', endpoint_suffix='core.windows.net'):
         self.AZURE_STORAGE_ACCOUNT = storage_account
         self.AZURE_STORAGE_CONTAINER = storage_container
+        self.PROTOCOL = protocol
+        self.ENDPOINT_SUFFIX = endpoint_suffix
 
-        self.AZURE_STORAGE_CONNECTION_STRING = ''
         self.AZURE_STORAGE_KEY = key
+        self.AZURE_STORAGE_CONNECTION_STRING = 'DefaultEndpointsProtocol={0};AccountName={1};AccountKey={2};EndpointSuffix={3}'.format(
+            self.PROTOCOL, self.AZURE_STORAGE_ACCOUNT, self.AZURE_STORAGE_KEY, self.ENDPOINT_SUFFIX)
 
-        self.container_url = _make_url(f'https://{self.AZURE_STORAGE_HOST_NAME}.blob.core.windows.net',
+        self.container_url = _make_url(f'https://{self.AZURE_STORAGE_ACCOUNT}.blob.core.windows.net',
                                        self.AZURE_STORAGE_CONTAINER)
 
-        self.container_client = ContainerClient.from_connection_string(self.AZURE_STORAGE_CONNECTION_STRING,
-                                                                       self.AZURE_STORAGE_CONTAINER)
+        self.container_client = ContainerClient.from_connection_string(self.AZURE_STORAGE_CONNECTION_STRING, self.AZURE_STORAGE_CONTAINER)
 
         self.blob_service_client = BlobServiceClient.from_connection_string(self.AZURE_STORAGE_CONNECTION_STRING)
         self.blob_client = None
@@ -42,8 +44,11 @@ class Client(object):
     def from_connection_string(cls, connection_string, container_name, credential=None, **kwargs):
         conn = ContainerClient.from_connection_string(connection_string, container_name=container_name,
                                                       credential=credential, **kwargs)
+
+
+        pass
         #TODO BREAK CONN APART TO WORK WITH THIS CLASS
-        return cls(conn)
+        return cls(conn.account_name, conn.container_name, conn.credential.account_key)
 
     def _check_client(self, blob_client=None, blob_path=None, sas_url=None):
         if blob_client:
@@ -181,5 +186,8 @@ class Client(object):
 
 
 if __name__ == '__main__':
-    lb = Client.from_connection_string('ABC')
+    s = os.environ.get('CONN')
+    lb = Client.from_connection_string(s, os.environ.get('CONTAINER'))
 
+    x = lb.list_blobs_in_container()
+    pass
